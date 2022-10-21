@@ -1,36 +1,33 @@
 
 CREATE TABLE users
 (
-  id serial NOT NULL,
+  id bigint UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   username character varying(64),
   password character varying(255),
   firstname character varying(64),
-  lastname character varying(64),
-  CONSTRAINT userspk PRIMARY KEY (id)
-);
+  lastname character varying(64)
+) ENGINE=InnoDB;
 
 CREATE TABLE categories
 (
-  id serial NOT NULL,
-  title character varying(120),
-  CONSTRAINT categoriespk PRIMARY KEY (id)
-);
+  id bigint UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  title character varying(120)
+) ENGINE=InnoDB;
 
 CREATE TABLE posts
 (
-  id serial NOT NULL,
-  users_id bigint,
+  id bigint PRIMARY KEY AUTO_INCREMENT,
+  users_id bigint UNSIGNED,
   title character varying(120),
-  categories_id bigint,
+  categories_id bigint UNSIGNED,
   publish boolean,
-  CONSTRAINT postspk PRIMARY KEY (id),
   CONSTRAINT postscategoriesfk FOREIGN KEY (categories_id)
       REFERENCES categories (id) MATCH SIMPLE
       ON UPDATE NO ACTION ON DELETE NO ACTION,
   CONSTRAINT postsusersfk FOREIGN KEY (users_id)
       REFERENCES users (id) MATCH SIMPLE
       ON UPDATE NO ACTION ON DELETE NO ACTION
-);
+) ENGINE=InnoDB;
 
 INSERT INTO users (username, password, firstname, lastname) VALUES ('john', '123', 'john', 'travolta');
 INSERT INTO users (username, password, firstname, lastname) VALUES ('sandra', '123', 'sandra', 'bullock');

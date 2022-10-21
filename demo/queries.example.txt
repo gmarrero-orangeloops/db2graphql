@@ -31,18 +31,21 @@ mutation {
 
 # Get all data at once
 query{
-  getFirstOfUsers(
-    filter: "users:id=1"
+  getFirstUsers(
+    filter: "users.id=1"
     pagination: "posts:limit=10|categories:limit=10"
   ) {
     id
     username
     posts {
-      id
-      title
-      categories {
+      total
+      items {
         id
         title
+        categories_id_categories {
+          id
+          title
+        }
       }
     }
   }
