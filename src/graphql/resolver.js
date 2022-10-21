@@ -208,6 +208,7 @@ class Resolver {
    */
   addDefaultFieldsResolvers(tablename) {
     let typeName = utils.toCamelCase(tablename);
+/*
     this.add('Query', 'getPage' + typeName, async (parent, args, context) => {
       return this.getPage(tablename, parent, args, context);
     });
@@ -217,6 +218,24 @@ class Resolver {
     this.add('Mutation', 'putItem' + typeName, async (parent, args, context) => {
       return this.putItem(tablename, parent, args, context);
     });
+*/
+    this.add('Query', typeName, async (parent, args, context) => {
+      return this.getFirstOf(tablename, parent, args, context);
+    });
+
+    this.add('Query', typeName + 's', async (parent, args, context) => {
+      return this.getPage(tablename, parent, args, context);
+    });
+    this.add('Mutation', 'create' + typeName, async (parent, args, context) => {
+      return this.putItem(tablename, parent, args, context);
+    });
+    this.add('Mutation', 'update' + typeName, async (parent, args, context) => {
+      return this.putItem(tablename, parent, args, context);
+    });
+    this.add('Mutation', 'delete' + typeName, async (parent, args, context) => {
+      return this.putItem(tablename, parent, args, context);
+    });
+
   }
 
   /**

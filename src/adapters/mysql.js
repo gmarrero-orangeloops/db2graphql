@@ -26,7 +26,8 @@ const availableTypes = [
   'varbinary',
   'json',
   'jsonb',
-  'uuid'
+  'uuid',
+  'bit'
 ];
 
 /**
@@ -60,8 +61,12 @@ class Mysql {
    */
   mapDbColumnToGraphqlType(columnname, attrs) {
     let graphqlType = '';
+
     switch(attrs.data_type) {
       case 'tinyint':
+      case 'bit':
+      case 'bool':
+      case 'boolean':
         graphqlType = 'Boolean';
         break;
       case 'numeric':
@@ -73,19 +78,38 @@ class Mysql {
         graphqlType = 'Float';
         break;
       case 'int':
+      case 'integer':
       case 'smallint':
       case 'mediumint':
       case 'bigint':
         graphqlType = 'Int';
         break;
-      case 'timestamp with time zone':
       case 'varchar':
+      case 'char':
       case 'text':
       case 'mediumtext':
       case 'binary':
       case 'varbinary':
       case 'bytea':
+      case 'tinyblob':
+      case 'tinytext':
+      case 'blob':
+      case 'mediumtext':
+      case 'mediumblob':
+      case 'longtext':
+      case 'longblob':
+      case 'enum':
+      case 'set':
+      case 'json':
+      case 'point':
       case 'USER-DEFINED':
+        graphqlType = 'String';
+        break;
+      case 'date':
+      case 'datetime':
+      case 'timestamp':
+      case 'time':
+      case 'year':
         graphqlType = 'String';
         break;
       default: throw new Error('Undefined column type: ' + attrs.data_type + ' of column '+ columnname);

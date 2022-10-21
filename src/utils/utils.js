@@ -14,5 +14,11 @@ const toCamelCase = (string) => {
   return string.split('_').map(i => capitalize(i)).join('');
 }
 
+const toUpperCase = (string) => {
+  result = string.toUpperCase()
+  return result;
+}
+
 exports.capitalize = capitalize;
 exports.toCamelCase = toCamelCase;
+exports.toUpperCase = toUpperCase;

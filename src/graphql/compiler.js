@@ -20,7 +20,7 @@ class Compiler {
     this.dbDriver = dbDriver;
 
     // Hold schema
-    this.schema = { type: {}, input: {} };
+    this.schema = { type: {}, input: {}, enum: {} };
 
     // Cache sdl
     this.sdl = '';
@@ -58,7 +58,9 @@ class Compiler {
    */
   mapDbTableToGraphqlType(tablename) {
     const field = utils.toCamelCase(tablename);
-    if (!this.schema.type[field]) this.schema.type[field] = {};
+
+    if (!this.schema.type[field])
+      this.schema.type[field] = {};
     
     // Add fields
     let columns = this.dbDriver.getTableColumnsFromSchema(tablename);
@@ -69,8 +71,17 @@ class Compiler {
           type: this.dbDriver.mapDbColumnToGraphqlType(child, this.dbSchema[tablename][child]),
           params: {}
         }
-      } catch (err) {}
+
+        this.addInput(field + 'Filter', child, this.dbDriver.mapDbColumnToGraphqlType(child, this.dbSchema[tablename][child]))
+        if (! child.includes('_id')) {
+          this.addEnum(field + 'OrderField', child)
+        }
+      
+      } catch (err) {
+        console.log(err)
+      }
     });
+
 
     // Add foreign relations
     columns.map(c => {
@@ -85,33 +96,50 @@ class Compiler {
       }
     })
 
+
     // Add reverse relation
     this.dbSchema[tablename].__reverse.map(r => {
       let child = r.ftablename;
       this.schema.type[field][child] = {
         name: child,
-        type: 'Page' + utils.toCamelCase(child),
+        type: utils.toCamelCase(child) + "Connection!",
         params: {
-          filter: 'String',
-          pagination: 'String',
-          where: 'Condition',
-          _debug: 'Boolean',
-          _cache: 'Boolean'
+//          filter: 'String',
+//          pagination: 'String',
+//          where: 'Condition',
+//          _cache: 'Boolean'
+
+          filter: utils.toCamelCase(child) + 'Filter',
+          orderBy: utils.toCamelCase(child) + 'OrderBy',
+          first: 'Int',
+          offset: 'Int'
         }
       }
     });
 
-    // Add pages
-    this.schema.type['Page' + field] = {
-      total: {
-        name: 'total',
-        type: 'Int',
-        params: {}
-      },
-      items: {
-        name: 'items',
-        type: [field]
+// Add Connections
+
+
+    if ( this.schema.type['ConnectionPageInfo'] === undefined ) {
+      this.schema.type['ConnectionPageInfo'] = {
+        hasNextPage: { name: 'hasNextPage', type: 'Boolean!' },
+        endCursor: { name: 'endCursor', type: 'String' }
       }
+    }
+
+    this.addEnum('ConnectionOrderDirection', 'ASC')
+    this.addEnum('ConnectionOrderDirection', 'DESC')
+    
+
+    this.schema.type[field + 'Edge'] = {
+      node: { name: 'node', type: field + '!' },
+      cursor: { name: 'cursor', type: 'String' }
+    }
+
+    this.schema.type[field + 'Connection'] = {
+      edges: { name: 'edges', type: '['+ field + 'Edge!]!' },
+      pageInfo: { name: 'pageInfo', type: 'ConnectionPageInfo!' },
+      totalCount: { name: 'totalCount', type: 'Int!' }
     }
   }
 
@@ -123,13 +151,18 @@ class Compiler {
    */
   mapDbTableToGraphqlQuery(tablename) {
     const field = utils.toCamelCase(tablename);
-    const params = { filter: 'String', pagination: 'String', where: 'Condition', _debug: 'Boolean', _cache: 'Boolean' };
     if (!this.schema.type.Query) this.schema.type['Query'] = {};
-    this.schema.type.Query['getPage' + field] = {
-      name: 'getPage' + field,
-      type: 'Page' + field,
+
+    this.addInput(field + 'OrderBy', 'field', field + 'OrderField!')
+    this.addInput(field + 'OrderBy', 'direction', 'ConnectionOrderDirection!')
+
+    const params = { filter: field + 'Filter', orderBy: field + 'OrderBy', first: 'Int', offset: 'Int'};
+    this.schema.type.Query[field + 's'] = {
+      name: field + 's',
+      type: field + 'Connection!',
       params
     }
+    
   }
 
   /**
@@ -143,10 +176,11 @@ class Compiler {
    */
   mapDbTableToGraphqlFirstOf(tablename) {
     const field = utils.toCamelCase(tablename);
-    const params = { filter: 'String', pagination: 'String', where: 'Condition', _debug: 'Boolean', _cache: 'Boolean' };
     if (!this.schema.type.Query) this.schema.type['Query'] = {};
-    this.schema.type.Query['getFirst' + field] = {
-      name: 'getFirst' + field,
+
+    const params = { id: 'ID!' };
+    this.schema.type.Query[field] = {
+      name: field,
       type: field,
       params
     }
@@ -159,7 +193,7 @@ class Compiler {
    */
   getInputName(tablename) {
     const field = utils.toCamelCase(tablename);
-    const name = 'Input' + field;
+    const name = field + 'Input';
     return name;
   }
 
@@ -169,14 +203,26 @@ class Compiler {
    * @param {String} tablename 
    */
   mapDbTableToGraphqlInput(tablename) {
-    const name = this.getInputName(tablename);
-    if (!this.schema.input[name]) this.schema.input[name] = {};
+    const createName = "Create" + this.getInputName(tablename);
+    const updateName = "Update" + this.getInputName(tablename);
+
     let columns = this.dbDriver.getTableColumnsFromSchema(tablename);
+
+    if (!this.schema.input[createName]) this.schema.input[createName] = {};
+    if (!this.schema.input[updateName]) this.schema.input[updateName] = {};
+
     columns.forEach(col => {
       try {
-        this.schema.input[name][col] = this.dbDriver.mapDbColumnToGraphqlType(col, this.dbSchema[tablename][col]);
+        if (col != 'created_at' && col != 'updated_at' && col != 'updated_by'){
+          this.schema.input[createName][col] = this.dbDriver.mapDbColumnToGraphqlType(col, this.dbSchema[tablename][col]);
+        }
+
+        if (col != 'created_at' && col != 'updated_at' && col != 'created_by'){
+          this.schema.input[updateName][col] = this.dbDriver.mapDbColumnToGraphqlType(col, this.dbSchema[tablename][col]);
+        }
       } catch (err) {}
     });
+
   }
 
   /**
@@ -188,13 +234,38 @@ class Compiler {
   mapDbTableToGraphqlMutation(tablename) {
     const field = utils.toCamelCase(tablename)
     if (!this.schema.type.Mutation) this.schema.type['Mutation'] = {};
+
     let name = this.getInputName(tablename);
-    let params = { _debug: 'Boolean', input: name + '!' };
-    this.schema.type.Mutation['putItem' + field] = {
-      name: 'putItem' + field,
-      type: field,
-      params
-    };
+
+    {
+      let params = {input: "Create" + name + '!'};
+
+      this.schema.type.Mutation['create' + field] = {
+        name: 'create' + field,
+        type: field,
+        params
+      };
+    }
+
+    {
+      let params = {input: "Update" + name + '!'};
+
+      this.schema.type.Mutation['update' + field] = {
+        name: 'update' + field,
+        type: field,
+        params
+      };
+    }
+
+    {
+      let params = {id: "ID!"};
+
+      this.schema.type.Mutation['delete' + field] = {
+        name: 'delete' + field,
+        type: 'Boolean!',
+        params
+      };  
+    }
   }
 
   /**
@@ -223,6 +294,17 @@ class Compiler {
     this.schema.input[input][field] = subType;
   }
 
+  /**
+   * Add enum field
+   * 
+   * @param {String} enum 
+   * @param {String} field 
+   * @param {String} subType 
+   */
+     addEnum(enumm, value) {
+      if (!this.schema.enum[enumm]) this.schema.enum[enumm] = {};
+      this.schema.enum[enumm][utils.toUpperCase(value)] = value;
+    }
   /**
    * Generate a complete SDL schema as a string.
    * Can be used as standalone.
@@ -268,12 +350,21 @@ class Compiler {
         items.push("input " + field + " {\n" + subfields.join("\n") + "\n}");
       }
 
+      // Build SDL enums
+      for (let enumm in this.schema.enum) {
+        let subfields = [];
+        Object.keys(this.schema.enum[enumm]).map(key => {
+          subfields.push("  " + key);
+        });
+        items.push("enum " + enumm + " {\n" + subfields.join("\n") + "\n}");
+      }
+
       this.sdl = items.join("\n\n");
       
       // Add condition type
-      if (items.length) {
-        this.sdl += "\n\ninput Condition {\n  sql: String!\n  val: [String!]!\n}";
-      }
+//      if (items.length) {
+//        this.sdl += "\n\ninput Condition {\n  sql: String!\n  val: [String!]!\n}";
+//      }
       
       this.sdl += "\n";
     }
